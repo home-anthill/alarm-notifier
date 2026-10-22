@@ -4,6 +4,7 @@
 
 ### Features
 
+- Add singular/plural level threshold notification messages through the existing grouped alarm delivery path.
 - Renamed the service, Cargo package/binary, Docker image, and repository references from `online-alarm` to `alarm-notifier` without changing offline detection or FCM behavior.
 - Added Redis DB 3 alarm preference and pending-event consumption without mixing alarm data into the online state or notification history.
 - Added grouped FCM notifications for motion, thermostat mode errors, and generic alarm types, acknowledging events only after successful delivery.

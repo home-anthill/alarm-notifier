@@ -68,6 +68,8 @@ pub fn build_alarm_batches(events: Vec<AlarmEvent>) -> BTreeMap<(String, String)
 
 pub fn alarm_notification_body(alarm_type: &str, event_count: usize) -> String {
     match (alarm_type, event_count) {
+        ("level", 1) => "Level threshold reached".to_string(),
+        ("level", count) => format!("{count} level threshold events detected"),
         ("motion", 1) => "Motion detected".to_string(),
         ("motion", count) => format!("{count} motion events detected"),
         ("thermostat-mode-error", 1) => "Thermostat mode error".to_string(),
@@ -359,6 +361,8 @@ mod tests {
 
     #[test]
     fn alarm_bodies_cover_known_and_generic_types() {
+        assert_eq!("Level threshold reached", alarm_notification_body("level", 1));
+        assert_eq!("2 level threshold events detected", alarm_notification_body("level", 2));
         assert_eq!("Motion detected", alarm_notification_body("motion", 1));
         assert_eq!("2 motion events detected", alarm_notification_body("motion", 2));
         assert_eq!("Thermostat mode error", alarm_notification_body("thermostat-mode-error", 1));
