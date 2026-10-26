@@ -214,7 +214,14 @@ async fn main() -> Result<(), rocket::Error> {
             for ((fcm_token, alarm_type), events) in build_alarm_batches(pending_alarms) {
                 let event_count = events.len();
                 let title = "home anthill".to_string();
-                let body = alarm_notification_body(&alarm_type, event_count);
+                let body = if matches!(alarm_type.as_str(), "temperature-status") && event_count == 1 {
+                    // in case of a single temperature error event, use the specific body
+                    // to show a detailed message about the temperature error itself
+                    alarm_notifier::notifications::temperature_error_body(&events[0].payload)
+                } else {
+                    // otherwise, use the generic body to show a summary of the alarm event
+                    alarm_notification_body(&alarm_type, event_count)
+                };
                 warn!(
                     target: "app",
                     "sending grouped message to FCM for {} alarm event(s) of type {}",

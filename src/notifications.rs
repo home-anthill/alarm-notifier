@@ -72,11 +72,26 @@ pub fn alarm_notification_body(alarm_type: &str, event_count: usize) -> String {
         ("level", count) => format!("{count} level threshold events detected"),
         ("motion", 1) => "Motion detected".to_string(),
         ("motion", count) => format!("{count} motion events detected"),
+        ("temperature-status", 1) => "Temperature sensor error".to_string(),
+        ("temperature-status", count) => format!("{count} alarms: temperatureStatus"),
         ("thermostat-mode-error", 1) => "Thermostat mode error".to_string(),
         ("thermostat-mode-error", count) => format!("{count} thermostat mode errors"),
         (alarm_type, 1) => format!("Alarm: {}", alarm_type.replace('-', " ")),
         (alarm_type, count) => format!("{count} alarms: {}", alarm_type.replace('-', " ")),
     }
+}
+
+pub fn temperature_error_body(payload: &str) -> String {
+    let code = serde_json::from_str::<serde_json::Value>(payload).ok().and_then(|v| v["value"].as_f64());
+    let reason = match code {
+        Some(1.0) => "initialization failed",
+        Some(2.0) => "open circuit",
+        Some(3.0) => "short circuit",
+        Some(4.0) => "open and short circuit",
+        Some(5.0) => "invalid or out-of-range reading",
+        _ => "unknown fault",
+    };
+    format!("Temperature sensor error: {reason}")
 }
 
 #[cfg(test)]
@@ -89,6 +104,7 @@ mod tests {
 
     use super::{
         alarm_notification_body, build_alarm_batches, build_offline_by_fcm_token_map, offline_notification_body,
+        temperature_error_body,
     };
     use crate::db::online::filter_offline;
     use crate::models::alarm::AlarmEvent;
@@ -367,5 +383,24 @@ mod tests {
         assert_eq!("2 motion events detected", alarm_notification_body("motion", 2));
         assert_eq!("Thermostat mode error", alarm_notification_body("thermostat-mode-error", 1));
         assert_eq!("Alarm: smoke detected", alarm_notification_body("smoke-detected", 1));
+    }
+
+    #[test]
+    fn temperature_notification_names_each_fault() {
+        for (code, reason) in [
+            (1, "initialization failed"),
+            (2, "open circuit"),
+            (3, "short circuit"),
+            (4, "open and short circuit"),
+            (5, "invalid or out-of-range reading"),
+        ] {
+            assert_eq!(
+                temperature_error_body(&format!("{{\"value\":{code}.0}}")),
+                format!("Temperature sensor error: {reason}")
+            );
+        }
+        assert_eq!(alarm_notification_body("temperature-status", 1), "Temperature sensor error");
+        assert_eq!(alarm_notification_body("temperature-status", 2), "2 alarms: temperatureStatus");
+        assert_eq!(alarm_notification_body("temperatureStatus", 2), "2 alarms: temperatureStatus");
     }
 }

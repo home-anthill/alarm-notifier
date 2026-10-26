@@ -33,7 +33,7 @@ ENV=testing RUST_BACKTRACE=full cargo test <test_name> -- --nocapture --test-thr
 **Main flow** (`src/main.rs`):
 1. Initializes logging (rolling file appenders split by level) and loads env config
 2. Connects to the online-status Redis database (`redis_client`)
-3. Connects to notification-history DB 1 and alarms DB 3, deriving those database numbers from `REDIS_URI` when their dedicated URIs are omitted.
+3. Connects to notification-history DB 1 and alarms DB 3, deriving those database numbers from `ONLINE_REDIS_URI` when their dedicated URIs are omitted.
 4. Initializes the FCM hub (`fcm_hub`) via `google-fcm1`
 5. Creates a `DashMap` cache for notification deduplication (tracks recently-sent device notifications with configurable TTL)
 6. Spawns a background tokio task (`notification_handle`) that:
@@ -55,7 +55,7 @@ ENV=testing RUST_BACKTRACE=full cargo test <test_name> -- --nocapture --test-thr
 **Notification history**: Successful FCM sends are persisted to Redis by `db::notification::save_sent_notification`. The main notification hash key is `notification:{id}` where `id` is `{sent_at_millis}-{sequence}`. Stored hash fields include `id`, `apiToken` (first affected token for compatibility), `apiTokens` (JSON array of all affected API tokens), `sentAt`, `title`, `body`, `deviceCount`, `devices` (JSON array of affected device/feature UUIDs and timestamps), `provider` (`fcm`), and `providerMessageId`. A Redis sorted-set index is also maintained per API token at `notifications:by_api_token:{api_token}` with `sentAt` as the score. Each save cleans notification hashes and index entries older than `NOTIFICATION_RETENTION_MILLIS` (90 days) for the affected API-token indexes.
 
 **Module structure**:
-- `config/` — logging setup and env loading, including `REDIS_URI`, `NOTIFICATIONS_REDIS_URI`, and `ALARMS_REDIS_URI`. Redis credentials are redacted in logs and debug output.
+- `config/` — logging setup and env loading, including `ONLINE_REDIS_URI`, `NOTIFICATIONS_REDIS_URI`, and `ALARMS_REDIS_URI`. Redis credentials are redacted in logs and debug output.
 - `routes/` — single REST endpoint: `GET /keepalive` (health check for Kubernetes probes)
 - `models/` — `Online` (device status with `device_uuid`, `feature_uuid`, `api_token`, `fcm_token`, `notification_silenced`; `created_at`/`modified_at` are `u64` millisecond epoch timestamps; `cache_key()` → `"{device_uuid}-{feature_uuid}"`), `Topic` (MQTT topic parser: `online/{device_uuid}/features/{feature_uuid}`). `Online` is constructed directly from Redis hash fields with no serde derives.
 - `db/` — Redis operations:
@@ -95,7 +95,7 @@ Before running the service locally:
 ## Configuration
 
 - **Rocket.toml**: Debug port 8088 (localhost), Release port 80 (0.0.0.0). **Note:** Redis, environment, and secrets are not configured here — all come from `.env` and runtime env vars. `secret_key` is **not** stored in the file; set `ROCKET_SECRET_KEY` env var at runtime (`openssl rand -base64 32`).
-- **Environment**: Copy `.env_template` to `.env` for local dev. `REDIS_URI` uses DB 0, `NOTIFICATIONS_REDIS_URI` DB 1, and `ALARMS_REDIS_URI` DB 3. If the latter two are omitted, the service derives DB 1/3 from `REDIS_URI`; DB 15 remains test-only.
+- **Environment**: Copy `.env_template` to `.env` for local dev. `ONLINE_REDIS_URI` uses DB 0, `NOTIFICATIONS_REDIS_URI` DB 1, and `ALARMS_REDIS_URI` DB 3. If the latter two are omitted, the service derives DB 1/3 from `ONLINE_REDIS_URI`; DB 15 remains test-only.
 - **Redis URI**: Supports both `redis://` and `rediss://` (TLS). When `REDIS_PASSWORD` is set, credentials are injected as `scheme://username:password@host:port` using percent-encoding via the `urlencoding` crate. Special characters in username/password are URL-encoded to prevent URI corruption. If `REDIS_USERNAME` is set but `REDIS_PASSWORD` is empty, a warning is logged and no authentication is attempted. The same credential-injection behavior is used for `NOTIFICATIONS_REDIS_URI` when present.
 - **FCM credentials**: Path to `serviceAccountKey.json` is set via `FCM_SERVICE_ACCOUNT_KEY_PATH` (defaults to `./serviceAccountKey.json`). Must be injected at runtime — not baked into the Docker image.
 - **Rust edition**: 2024; release profile uses LTO, opt-level 3, panic=abort
@@ -124,7 +124,7 @@ This design ensures one misbehaving device or transient Redis issue doesn't disa
 |--------|--------------|
 | `ROCKET_SECRET_KEY` | `openssl rand -base64 32` → env var |
 | `FCM_SERVICE_ACCOUNT_KEY_PATH` | Mount file via Docker volume / secret |
-| `REDIS_URI` | Env var; credentials in URI are redacted in logs |
+| `ONLINE_REDIS_URI` | Env var; credentials in URI are redacted in logs |
 | `NOTIFICATIONS_REDIS_URI` | Optional env var for separate notification history storage; credentials are redacted in logs |
 | `ALARMS_REDIS_URI` | Optional env var for Redis DB 3 alarm settings and pending events; credentials are redacted in logs |
 
