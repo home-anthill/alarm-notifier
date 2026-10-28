@@ -34,7 +34,7 @@ ENV=testing RUST_BACKTRACE=full cargo test <test_name> -- --nocapture --test-thr
 1. Initializes logging (rolling file appenders split by level) and loads env config
 2. Connects to the online-status Redis database (`redis_client`)
 3. Connects to notification-history DB 1 and alarms DB 3, deriving those database numbers from `ONLINE_REDIS_URI` when their dedicated URIs are omitted.
-4. Initializes the FCM hub (`fcm_hub`) via `google-fcm1`
+4. Initializes the FCM HTTP v1 client (`fcm_client`) via `google-cloud-auth` and `reqwest`
 5. Creates a `DashMap` cache for notification deduplication (tracks recently-sent device notifications with configurable TTL)
 6. Spawns a background tokio task (`notification_handle`) that:
    - Polls Redis every 10 seconds for all devices
